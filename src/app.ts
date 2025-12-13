@@ -89,14 +89,22 @@ app.get('/test', (req: Request, res: Response) => {
 
 // Touch-friendly control page with 3x3 grid of buttons
 app.get('/', (req: Request, res: Response) => {
-    const labels = config.sequences && Array.isArray(config.sequences) ? config.sequences : []
-    // Ensure exactly 9 placeholders
-    const sequences = Array.from({ length: 8 }, (_, i) => labels[i] || `seq${i + 1}`)
+    const configs = config.sequences && Array.isArray(config.sequences) ? config.sequences : []
+
+    // Ensure exactly 8 buttons, falling back to default sequence buttons
+    const sequences = Array.from({ length: 8 }, (_, i) => {
+        const c = configs[i]
+        if (c && typeof c.name === 'string' && (c.type === 'sequence' || c.type === 'sequence-effect' || c.type === 'effect')) {
+            return c
+        }
+        return { name: `seq${i + 1}`, type: 'sequence' as const }
+    })
 
     // Build button HTML
-    const buttons = sequences.map((label, idx) => {
-        const safe = String(label)
-        return `<button class="tile" data-name="${safe}"><span>${safe}</span></button>`
+    const buttons = sequences.map((btnCfg) => {
+        const safe = String(btnCfg.name)
+        const type = btnCfg.type || 'sequence'
+        return `<button class="tile" data-name="${safe}" data-type="${type}"><span>${safe}</span></button>`
     }).join('')
 
     res.status(200).send(`<!DOCTYPE html>
@@ -169,11 +177,21 @@ app.get('/', (req: Request, res: Response) => {
         }
 
         function handleClick(e) {
-          var btn = e.currentTarget;
-          var name = btn.getAttribute('data-name');
+          const btn = e.currentTarget;
+          const name = btn.getAttribute('data-name');
+          const type = btn.getAttribute('data-type') || 'sequence';
           if (!name) return;
-          var url = '/api/sequence/' + encodeURIComponent(name) + '/start';
-          setStatus('Starting "' + name + '" ...');
+          let url;
+          if (type === 'effect') {
+            // name: effect name, command is 'Play Effect'
+            url = '/api/command/' + encodeURIComponent('Effect Start') + '/' + encodeURIComponent(name);
+          } else if (type === 'sequence-effect') {
+            // name: sequence name, command is 'FSEQ Effect Start'
+            url = '/api/command/' + encodeURIComponent('FSEQ Effect Start') + '/' + encodeURIComponent(name);
+          } else {
+            url = '/api/sequence/' + encodeURIComponent(name) + '/start';
+          }
+          setStatus('Starting "' + type + ' ' + name + '" ...');
           btn.disabled = true;
           fetch(url, { method: 'POST' })
             .then(function(resp){ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); })
@@ -232,9 +250,30 @@ async function startSequence(name: string) {
     })
 }
 
+async function startEffect(name: string) {
+    return sendCommand('Play Effect', name)
+}
+
 async function sendCommandPreset(slot: string) {
     const command = 'Trigger Command Preset Slot';
-    const targetUrl = `${config.FPPUrl}/api/command/${encodeURIComponent(command)}/${slot}`
+    return sendCommand(command, slot)
+}
+
+async function sendCommand(command: string, param?: string) {
+    let targetUrl = `${config.FPPUrl}/api/command/${encodeURIComponent(command)}${param ? `/${encodeURIComponent(param)}` : ''}`
+
+    switch (command) {
+        case 'FSEQ Effect Start':
+            targetUrl += '/false/true'
+            break;
+        case 'Effect Start':
+            const StartChannel = 0
+            const Loop = 'false'
+            const Background = 'false'
+            const IfNotRunning = 'false'
+            targetUrl += `/${StartChannel}/${Loop}/${Background}/${IfNotRunning}`
+            break;
+    }
     logger.info(`Proxying to ${targetUrl}`)
 
     return await fetch(targetUrl, {
@@ -295,6 +334,27 @@ app.post('/api/command-preset/:slot', async (req: Request, res: Response) => {
         res.status(200).send(text || 'OK')
     } catch (err: any) {
         logger.error(`Error starting sequence: ${err?.message || err}`)
+        const isTimeout = (err && (err.name === 'TimeoutError' || /abort/i.test(err.message)))
+        res.status(isTimeout ? 504 : 500).json({ error: 'Failed to reach FPP', message: err?.message || String(err) })
+    }
+})
+app.post('/api/command/:name/:params', async (req: Request, res: Response) => {
+    try {
+        const { name, params } = req.params
+        if (!name || !/^[A-Za-z0-9._\s-]+$/.test(name)) {
+            res.status(400).json({ error: 'Invalid sequence name' })
+            return
+        }
+
+        const fppResp = await sendCommand(name, params);
+        const text = await fppResp.text().catch(() => '')
+        if (!fppResp.ok) {
+            res.status(502).json({ error: 'FPP responded with error', status: fppResp.status, body: text })
+            return
+        }
+        res.status(200).send(text || 'OK')
+    } catch (err: any) {
+        logger.error(`Error starting effect: ${err?.message || err}`)
         const isTimeout = (err && (err.name === 'TimeoutError' || /abort/i.test(err.message)))
         res.status(isTimeout ? 504 : 500).json({ error: 'Failed to reach FPP', message: err?.message || String(err) })
     }
