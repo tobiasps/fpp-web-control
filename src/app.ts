@@ -94,7 +94,7 @@ app.get('/', (req: Request, res: Response) => {
     // Ensure exactly 8 buttons, falling back to default sequence buttons
     const sequences = Array.from({ length: 8 }, (_, i) => {
         const c = configs[i]
-        if (c && typeof c.name === 'string' && (c.type === 'sequence' || c.type === 'sequence-effect' || c.type === 'effect')) {
+        if (c && typeof c.name === 'string') {
             return c
         }
         return { name: `seq${i + 1}`, type: 'sequence' as const }
@@ -188,6 +188,8 @@ app.get('/', (req: Request, res: Response) => {
           } else if (type === 'sequence-effect') {
             // name: sequence name, command is 'FSEQ Effect Start'
             url = '/api/command/' + encodeURIComponent('FSEQ Effect Start') + '/' + encodeURIComponent(name);
+          } else if (type === 'stop') {
+            url = '/api/sequence/current/stop';
           } else {
             url = '/api/sequence/' + encodeURIComponent(name) + '/start';
           }
@@ -284,15 +286,20 @@ async function sendCommand(command: string, param?: string) {
 
 // Routes
 // Start a sequence by name via FPP proxy
-app.post('/api/sequence/:name/start', async (req: Request, res: Response) => {
+app.post('/api/sequence/:name/:action', async (req: Request, res: Response) => {
     try {
-        const { name } = req.params
+        const { name, action } = req.params
         if (!name || !/^[A-Za-z0-9._\s-]+$/.test(name)) {
             res.status(400).json({ error: 'Invalid sequence name' })
             return
         }
 
-        const fppResp = await startSequence(name)
+        let fppResp;
+        if (action === 'start') {
+            fppResp = await startSequence(name)
+        } else if (action === 'stop') {
+            fppResp = await stopCurrentSequence()
+        }
         const text = await fppResp.text().catch(() => '')
         if (!fppResp.ok) {
             res.status(502).json({ error: 'FPP responded with error', status: fppResp.status, body: text })

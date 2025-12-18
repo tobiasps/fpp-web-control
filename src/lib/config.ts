@@ -1,6 +1,6 @@
 interface ButtonConfig {
     name: string;
-    type: 'sequence' | 'sequence-effect' | 'effect';
+    type: 'sequence' | 'sequence-effect' | 'effect' | 'stop';
 }
 
 interface Config {
@@ -22,7 +22,7 @@ const config: Config = {
         { name: 'shockwave',     type: 'sequence-effect' },
         { name: 'shock4',        type: 'effect'   },
         { name: 'Another Effect',type: 'effect'   },
-        { name: 'seq8',          type: 'sequence' },
+        { name: 'stop',          type: 'stop' },
     ],
 }
 
