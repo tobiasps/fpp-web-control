@@ -1,5 +1,7 @@
 interface ButtonConfig {
+    title: string;
     name: string;
+    color?: string;
     type: 'sequence' | 'sequence-effect' | 'effect' | 'stop';
 }
 
@@ -15,14 +17,18 @@ const config: Config = {
     FPPUrl: process.env.FPP_URL || 'http://fpp.local',
     // Adjust these as you like: type can be 'sequence' or 'effect'
     sequences: [
-        { name: 'fire',          type: 'sequence' },
-        { name: 'blandet',       type: 'sequence' },
-        { name: 'Plasma Parts',  type: 'sequence' },
-        { name: 'bitchinparts',  type: 'sequence' },
-        { name: 'shockwave',     type: 'sequence-effect' },
-        { name: 'shock4',        type: 'effect'   },
-        { name: 'Another Effect',type: 'effect'   },
-        { name: 'stop',          type: 'stop' },
+        { title: 'Default',             name: 'hvid',              type: 'sequence', color: '#999'},
+        { title: 'Shockhvid',           name: 'shockhvid',         type: 'sequence-effect', color: '#999' },
+        { title: 'Sommer i DK - Salsa', name: 'color_red_sparkle', type: 'sequence', color: 'darkred' },
+        { title: 'Sexy Slange',         name: 'greenyellow',       type: 'sequence', color: 'darkgreen' },
+        { title: 'Voksentøj',           name: 'redmagenta',        type: 'sequence', color: 'darkmagenta' },
+        { title: 'Problemer',           name: 'hvidturkis',        type: 'sequence', color: 'darkturquoise' },
+        { title: 'Spejlet',             name: 'pinkyellow',        type: 'sequence', color: 'gold' },
+        { title: 'Orden og Lov',        name: 'fire',              type: 'sequence', color: 'darkorange' },
+        { title: 'Du En Pige',          name: '178bank',           type: 'sequence', color: 'darkred' },
+        { title: 'Natten er vores',     name: 'natten',            type: 'sequence', color: 'darkblue' },
+        { title: 'Bitchin Betjent',     name: 'bitchin',           type: 'sequence', color: 'blue' },
+        { title: 'Stop',                name: 'stop',              type: 'stop' },
     ],
 }
 

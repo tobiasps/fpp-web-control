@@ -92,19 +92,23 @@ app.get('/', (req: Request, res: Response) => {
     const configs = config.sequences && Array.isArray(config.sequences) ? config.sequences : []
 
     // Ensure exactly 8 buttons, falling back to default sequence buttons
-    const sequences = Array.from({ length: 8 }, (_, i) => {
-        const c = configs[i]
-        if (c && typeof c.name === 'string') {
-            return c
-        }
-        return { name: `seq${i + 1}`, type: 'sequence' as const }
-    })
+    // const sequences = Array.from({ length: 8 }, (_, i) => {
+    //     const c = configs[i]
+    //     if (c && typeof c.name === 'string') {
+    //         return c
+    //     }
+    //     return { name: `seq${i + 1}`, type: 'sequence' as const }
+    // })
+    const sequences = configs;
 
     // Build button HTML
     const buttons = sequences.map((btnCfg) => {
-        const safe = String(btnCfg.name)
+        const seqName = String(btnCfg.name)
+        const title = String(btnCfg.title) || seqName
         const type = btnCfg.type || 'sequence'
-        return `<button class="tile" data-name="${safe}" data-type="${type}"><span>${safe}</span></button>`
+        return `<button class="tile" data-name="${seqName}" data-type="${type}" data-color="${btnCfg.color}">
+    <div>${title}</div><div class="seq-name">${seqName}</div>
+</button>`
     }).join('')
 
     res.status(200).send(`<!DOCTYPE html>
@@ -119,10 +123,11 @@ app.get('/', (req: Request, res: Response) => {
       body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif; background: #111; color: #eee; }
       .wrap { min-height: 100vh; max-height: 100vh; display: grid; grid-template-rows: 1fr auto; }
       .grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 0.75rem; padding: 0.75rem; }
-      .tile { display: flex; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 12px; background: var(--bg, #2a2a2a); color: var(--fg, #fff); cursor: pointer; user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0); touch-action: manipulation; box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: background-color 80ms ease-out, transform 80ms ease-out; }
+      .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 12px; background: var(--bg, #2a2a2a); color: var(--fg, #fff); cursor: pointer; user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0); touch-action: manipulation; box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: background-color 80ms ease-out, transform 80ms ease-out; }
       .tile:active { transform: scale(0.98); background: var(--bg-active, #333); }
-      .tile span { font-size: clamp(1rem, 4.2vw, 2rem); font-weight: 600; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
-      .status { padding: 0.5rem 1rem 1rem; text-align: center; min-height: 2rem; color: #7bd88f; }
+      .tile div { font-size: clamp(1rem, 4.2vw, 2rem); font-weight: 600; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
+      .tile div.seq-name { opacity: 0.75; font-size: clamp(1rem, 1.5vw, 2rem); font-weight: 300; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
+      .status { padding: 0.5rem; text-align: center; min-height: 2rem; color: #7bd88f; }
       .error { color: #ff7b7b; }
       @media (orientation: landscape) {
         .grid { gap: 0.6rem; }
@@ -134,10 +139,10 @@ app.get('/', (req: Request, res: Response) => {
     <div class="wrap">
       <main class="grid">
         ${buttons}
-        <button class="tile" data-slot="1"><span>Fade Out</span></button>
-        <button class="tile" data-slot="2"><span>Fade In</span></button>
-        <button class="tile" data-slot="3"><span>On</span></button>
-        <button class="tile" data-slot="4"><span>Off</span></button>
+<!--        <button class="tile" data-slot="1"><span>Fade Out</span></button>-->
+<!--        <button class="tile" data-slot="2"><span>Fade In</span></button>-->
+<!--        <button class="tile" data-slot="3"><span>On</span></button>-->
+<!--        <button class="tile" data-slot="4"><span>Off</span></button>-->
       </main>
       <div id="status" class="status" aria-live="polite"></div>
     </div>
@@ -161,6 +166,10 @@ app.get('/', (req: Request, res: Response) => {
         function hsl(h, s, l) { return 'hsl(' + h + ' ' + s + '% ' + l + '%)'; }
 
         function setTileColors(btn) {
+            if (btn.hasAttribute('data-color')) {
+                btn.style.setProperty('--bg', btn.getAttribute('data-color'));
+                return
+            }
           var name = btn.getAttribute('data-name') || '';
           var hue = hashToHue(name);
           var sat = 68; // vibrant but not neon
@@ -299,6 +308,9 @@ app.post('/api/sequence/:name/:action', async (req: Request, res: Response) => {
             fppResp = await startSequence(name)
         } else if (action === 'stop') {
             fppResp = await stopCurrentSequence()
+        } else {
+            res.status(400).json({ error: 'Invalid action' })
+            return
         }
         const text = await fppResp.text().catch(() => '')
         if (!fppResp.ok) {
