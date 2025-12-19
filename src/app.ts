@@ -63,6 +63,21 @@ app.get('/test', (req: Request, res: Response) => {
           statusEl.style.color = isError ? '#b00020' : '#2e7d32';
         }
 
+        function post(url, onSuccess, onError) {
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', url, true);
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                if (onSuccess) onSuccess(xhr.responseText);
+              } else {
+                if (onError) onError(new Error('HTTP ' + xhr.status));
+              }
+            }
+          };
+          try { xhr.send(null); } catch (e) { if (onError) onError(e); }
+        }
+
         btn.addEventListener('click', function() {
           var name = (input.value || '').trim();
           if (!name) {
@@ -71,14 +86,11 @@ app.get('/test', (req: Request, res: Response) => {
           }
           var url = '/api/sequence/' + encodeURIComponent(name) + '/start';
           setStatus('Starting sequence "' + name + '" ...');
-          fetch(url, { method: 'POST' }).then(function(resp) {
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            return resp.text();
-          }).then(function() {
+          post(url, function() {
             setStatus('Sequence "' + name + '" start request sent successfully.');
-          }).catch(function(err) {
-            setStatus('Failed to start sequence: ' + err.message, true);
-            console.error(err);
+          }, function(err) {
+            setStatus('Failed to start sequence: ' + (err && err.message ? err.message : String(err)), true);
+            try { console.error(err); } catch (_e) {}
           });
         });
       })();
@@ -185,12 +197,24 @@ app.get('/', (req: Request, res: Response) => {
           btn.style.outlineColor = fg === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
         }
 
+        function post(url, onDone) {
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', url, true);
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+              var ok = xhr.status >= 200 && xhr.status < 300;
+              onDone(ok, xhr);
+            }
+          };
+          try { xhr.send(null); } catch (_e) { onDone(false, { status: 0 }); }
+        }
+
         function handleClick(e) {
-          const btn = e.currentTarget;
-          const name = btn.getAttribute('data-name');
-          const type = btn.getAttribute('data-type') || 'sequence';
+          var btn = e.currentTarget;
+          var name = btn.getAttribute('data-name');
+          var type = btn.getAttribute('data-type') || 'sequence';
           if (!name) return;
-          let url;
+          var url;
           if (type === 'effect') {
             // name: effect name, command is 'Play Effect'
             url = '/api/command/' + encodeURIComponent('Effect Start') + '/' + encodeURIComponent(name);
@@ -206,34 +230,31 @@ app.get('/', (req: Request, res: Response) => {
           }
           setStatus('Starting "' + type + ' ' + name + '" ...');
           btn.disabled = true;
-          fetch(url, { method: 'POST' })
-            .then(function(resp){ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); })
-            .then(function(){ setStatus('Started: ' + name); })
-            .catch(function(err){ setStatus('Failed: ' + err.message, true); })
-            .finally(function(){ btn.disabled = false; });
+          post(url, function(ok, xhr){
+            if (ok) setStatus('Started: ' + name); else setStatus('Failed: HTTP ' + (xhr && xhr.status), true);
+            btn.disabled = false;
+          });
         }
         function handleCommandClick(e) {
-            console.log(e);
           var btn = e.currentTarget;
           var name = btn.getAttribute('data-slot');
           if (!name) return;
           var url = '/api/command-preset/' + encodeURIComponent(name);
           setStatus('Sending command preset slot "' + name + '" ...');
           btn.disabled = true;
-          fetch(url, { method: 'POST' })
-            .then(function(resp){ if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.text(); })
-            .then(function(){ setStatus('Sent: ' + name); })
-            .catch(function(err){ setStatus('Failed: ' + err.message, true); })
-            .finally(function(){ btn.disabled = false; });
+          post(url, function(ok, xhr){
+            if (ok) setStatus('Sent: ' + name); else setStatus('Failed: HTTP ' + (xhr && xhr.status), true);
+            btn.disabled = false;
+          });
         }
 
         Array.prototype.forEach.call(document.querySelectorAll('.tile'), function(btn){
             if (btn.hasAttribute('data-slot')) {
-              btn.addEventListener('click', handleCommandClick, { passive: true });  
-            } 
+              btn.addEventListener('click', handleCommandClick, false);
+            }
             if (btn.hasAttribute('data-name')) {
               setTileColors(btn);
-              btn.addEventListener('click', handleClick, { passive: true });
+              btn.addEventListener('click', handleClick, false);
             }
         });
       })();
