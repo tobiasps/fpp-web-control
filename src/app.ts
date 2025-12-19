@@ -197,8 +197,10 @@ app.get('/', (req: Request, res: Response) => {
           } else if (type === 'sequence-effect') {
             // name: sequence name, command is 'FSEQ Effect Start'
             url = '/api/command/' + encodeURIComponent('FSEQ Effect Start') + '/' + encodeURIComponent(name);
+          } else if (type === 'playlist') {
+            url = '/api/playlist/' + encodeURIComponent(name) + '/start';
           } else if (type === 'stop') {
-            url = '/api/sequence/current/stop';
+            url = '/api/stop';
           } else {
             url = '/api/sequence/' + encodeURIComponent(name) + '/start';
           }
@@ -261,6 +263,27 @@ async function startSequence(name: string) {
     })
 }
 
+async function startPlaylist(name: string) {
+    const loop = 'false'
+    const IfNotRunning = 'false'
+
+    const startUrl = `${config.FPPUrl}/api/command/${encodeURIComponent("Start Playlist")}/${encodeURIComponent(name)}/${loop}/${IfNotRunning}`
+    logger.info(`Proxying playlist start to ${startUrl}`)
+    return await fetch(startUrl, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000),
+    })
+}
+
+async function stopPlaylist() {
+    const url = `${config.FPPUrl}/api/playlists/stop`
+    logger.info(`Proxying playlist stop to ${url}`)
+    return await fetch(url, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000),
+    })
+}
+
 async function startEffect(name: string) {
     return sendCommand('Play Effect', name)
 }
@@ -313,6 +336,55 @@ app.post('/api/sequence/:name/:action', async (req: Request, res: Response) => {
             return
         }
         const text = await fppResp.text().catch(() => '')
+        if (!fppResp.ok) {
+            res.status(502).json({ error: 'FPP responded with error', status: fppResp.status, body: text })
+            return
+        }
+        res.status(200).send(text || 'OK')
+    } catch (err: any) {
+        logger.error(`Error starting sequence: ${err?.message || err}`)
+        const isTimeout = (err && (err.name === 'TimeoutError' || /abort/i.test(err.message)))
+        res.status(isTimeout ? 504 : 500).json({ error: 'Failed to reach FPP', message: err?.message || String(err) })
+    }
+})
+// Start a playlist by name via FPP proxy
+app.post('/api/playlist/:name/:action', async (req: Request, res: Response) => {
+    try {
+        const { name, action } = req.params
+        if (!name || !/^[A-Za-z0-9._\s-]+$/.test(name)) {
+            res.status(400).json({ error: 'Invalid sequence name' })
+            return
+        }
+
+        let fppResp;
+        if (action === 'start') {
+            fppResp = await startPlaylist(name)
+        } else if (action === 'stop') {
+            fppResp = await stopPlaylist()
+        } else {
+            res.status(400).json({ error: 'Invalid action' })
+            return
+        }
+        const text = await fppResp.text().catch(() => '')
+        if (!fppResp.ok) {
+            res.status(502).json({ error: 'FPP responded with error', status: fppResp.status, body: text })
+            return
+        }
+        res.status(200).send(text || 'OK')
+    } catch (err: any) {
+        logger.error(`Error starting sequence: ${err?.message || err}`)
+        const isTimeout = (err && (err.name === 'TimeoutError' || /abort/i.test(err.message)))
+        res.status(isTimeout ? 504 : 500).json({ error: 'Failed to reach FPP', message: err?.message || String(err) })
+    }
+})
+// Stop all
+app.post('/api/stop', async (req: Request, res: Response) => {
+    try {
+
+        let fppResp;
+        fppResp = await stopPlaylist()
+        fppResp = await stopCurrentSequence()
+        let text = await fppResp.text().catch(() => '')
         if (!fppResp.ok) {
             res.status(502).json({ error: 'FPP responded with error', status: fppResp.status, body: text })
             return
