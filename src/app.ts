@@ -130,21 +130,25 @@ app.get('/', (req: Request, res: Response) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
     <title>FPPControl — Control</title>
     <style>
-      :root { color-scheme: light dark; }
       html, body { height: 100%; }
-      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif; background: #111; color: #eee; }
-      .wrap { min-height: 100vh; max-height: 100vh; display: grid; grid-template-rows: 1fr auto; }
-      .grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 0.75rem; padding: 0.75rem; }
-      .tile { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; border: none; border-radius: 12px; background: var(--bg, #2a2a2a); color: var(--fg, #fff); cursor: pointer; user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0); touch-action: manipulation; box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: background-color 80ms ease-out, transform 80ms ease-out; }
-      .tile:active { transform: scale(0.98); background: var(--bg-active, #333); }
-      .tile div { font-size: clamp(1rem, 4.2vw, 2rem); font-weight: 600; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
-      .tile div.seq-name { opacity: 0.75; font-size: clamp(1rem, 1.5vw, 2rem); font-weight: 300; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif; background: #111; color: #eee; -webkit-text-size-adjust: 100%; }
+      .wrap { min-height: 100vh; max-height: 100vh; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+      .grid { padding: 0.75rem; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-align-content: stretch; align-content: stretch; margin: -0.375rem; }
+      .tile { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; width: calc(25% - 0.75rem); height: calc((100vh - 4rem) / 3); margin: 0.375rem; border: none; border-radius: 12px; background: #2a2a2a; color: #fff; cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0); box-shadow: 0 2px 6px rgba(0,0,0,0.4); -webkit-transition: background-color 80ms ease-out, -webkit-transform 80ms ease-out; transition: background-color 80ms ease-out, transform 80ms ease-out; -webkit-appearance: none; }
+      .tile:active { -webkit-transform: scale(0.98); transform: scale(0.98); background: #333; }
+      .tile div { font-size: 4.2vw; font-weight: 600; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
+      .tile div.seq-name { opacity: 0.75; font-size: 1.5vw; font-weight: 300; letter-spacing: 0.5px; text-align: center; padding: 0 0.5rem; }
+      /* Small devices: ensure readable text */
+      @media (max-width: 480px) {
+        .tile div { font-size: 1.25rem; }
+        .tile div.seq-name { font-size: 1rem; }
+      }
+      /* Landscape adjustments */
+      @media (orientation: landscape) {
+        .tile { height: calc((100vh - 4rem) / 3); }
+      }
       .status { padding: 0.5rem; text-align: center; min-height: 2rem; color: #7bd88f; }
       .error { color: #ff7b7b; }
-      @media (orientation: landscape) {
-        .grid { gap: 0.6rem; }
-        .tile span { font-size: clamp(0.9rem, 3.2vh, 1.6rem); }
-      }
     </style>
   </head>
   <body>
@@ -179,8 +183,10 @@ app.get('/', (req: Request, res: Response) => {
 
         function setTileColors(btn) {
             if (btn.hasAttribute('data-color')) {
-                btn.style.setProperty('--bg', btn.getAttribute('data-color'));
-                return
+                var c = btn.getAttribute('data-color');
+                btn.style.background = c;
+                btn.style.color = '#fff';
+                return;
             }
           var name = btn.getAttribute('data-name') || '';
           var hue = hashToHue(name);
@@ -190,9 +196,10 @@ app.get('/', (req: Request, res: Response) => {
           var bgActive = hsl(hue, sat, Math.max(20, light - 10));
           // Choose foreground color based on background lightness
           var fg = light > 55 ? '#111' : '#fff';
-          btn.style.setProperty('--bg', bg);
-          btn.style.setProperty('--bg-active', bgActive);
-          btn.style.setProperty('--fg', fg);
+          btn.style.background = bg;
+          btn.style.color = fg;
+          // store for active state handlers
+          try { btn.setAttribute('data-bg', bg); btn.setAttribute('data-bg-active', bgActive); } catch (_e) {}
           // Improve focus visibility on keyboards (not common on iPad, but safe)
           btn.style.outlineColor = fg === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
         }
@@ -248,6 +255,17 @@ app.get('/', (req: Request, res: Response) => {
           });
         }
 
+        function onPress(e){
+          var b = e.currentTarget;
+          var bgA = b.getAttribute('data-bg-active');
+          if (bgA) b.style.background = bgA;
+        }
+        function onRelease(e){
+          var b = e.currentTarget;
+          var bg = b.getAttribute('data-bg');
+          if (bg) b.style.background = bg;
+        }
+
         Array.prototype.forEach.call(document.querySelectorAll('.tile'), function(btn){
             if (btn.hasAttribute('data-slot')) {
               btn.addEventListener('click', handleCommandClick, false);
@@ -256,11 +274,18 @@ app.get('/', (req: Request, res: Response) => {
               setTileColors(btn);
               btn.addEventListener('click', handleClick, false);
             }
+            // Simulate :active background color without CSS variables
+            btn.addEventListener('touchstart', onPress, false);
+            btn.addEventListener('mousedown', onPress, false);
+            btn.addEventListener('touchend', onRelease, false);
+            btn.addEventListener('touchcancel', onRelease, false);
+            btn.addEventListener('mouseup', onRelease, false);
+            btn.addEventListener('mouseleave', onRelease, false);
         });
       })();
     </script>
   </body>
- </html>`)
+</html>`)
 })
 
 // All requests must be authenticated
