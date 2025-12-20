@@ -1,0 +1,31 @@
+[Unit]
+Description=FPP Web Control Service
+After=network.target
+
+[Service]
+# Adjust the user and group to the one owning the project files
+User=fpp
+Group=fpp
+
+# Adjust this to the absolute path of your project
+WorkingDirectory=/opt/fpp-web-control
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=FPPCONTROL_SERVER_PORT=8080
+Environment=FPP_URL=http://fpp.local
+
+# Path to the node binary and the built entry point
+ExecStart=/usr/bin/node dist/server.js
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Standard output/error logging (handled by journald)
+StandardOutput=inherit
+StandardError=inherit
+SyslogIdentifier=fpp-web-control
+
+[Install]
+WantedBy=multi-user.target
